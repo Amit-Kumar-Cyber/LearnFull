@@ -1,0 +1,12 @@
+{
+  "name": "learnfull-platform",
+  "version": "1.0.0",
+  "scripts": {
+    "start": "concurrently \"npm run start --prefix client\" \"npm run start --prefix server\"",
+    "dev": "concurrently \"npm run dev --prefix client\" \"npm run dev --prefix server\"",
+    "install:all": "npm install && cd client && npm install && cd ../server && npm install"
+  },
+  "dependencies": {
+    "concurrently": "^9.0.0"
+  }
+}

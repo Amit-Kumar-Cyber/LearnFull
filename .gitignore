@@ -1,0 +1,39 @@
+# Dependencies
+node_modules/
+client/node_modules/
+server/node_modules/
+
+# Next.js build output
+.next/
+client/.next/
+out/
+build/
+
+# Production
+dist/
+server/dist/
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+server/.env
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# System Files
+.DS_Store
+Thumbs.db
+
+# IDEs
+.vscode/
+.idea/
+
+# User Requested: Ignore Doc folder
+Doc/
+TODO.md
