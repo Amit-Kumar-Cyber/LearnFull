@@ -1,106 +1,123 @@
-const express = require('express');
+import express from 'express';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+import User from '../models/User.js';
+
 const router = express.Router();
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
-const User = require('../models/User');
-const auth = require('../middleware/auth');
 
-// @route   POST api/auth/signup
-// @desc    Register user
-// @access  Public
+// Middleware to verify token
+export const authenticateToken = (req, res, next) => {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
+
+    if (!token) return res.status(401).json({ message: 'Access token required' });
+
+    jwt.verify(token, process.env.JWT_SECRET || 'secret_key', (err, user) => {
+        if (err) return res.status(403).json({ message: 'Invalid token' });
+        req.user = user;
+        next();
+    });
+};
+
+// Sign Up
 router.post('/signup', async (req, res) => {
-    const { name, email, password } = req.body;
-
     try {
-        let user = await User.findOne({ email });
+        const { email, password, full_name } = req.body;
 
-        if (user) {
-            return res.status(400).json({ msg: 'User already exists' });
+        if (!email || !password || !full_name) {
+            return res.status(400).json({ message: 'All fields are required' });
         }
 
-        user = new User({
-            name,
+        const existingUser = await User.findOne({ email });
+        if (existingUser) {
+            return res.status(400).json({ message: 'Email already exists' });
+        }
+
+        const hashedPassword = await bcrypt.hash(password, 10);
+
+        const newUser = new User({
             email,
-            password
+            password: hashedPassword,
+            full_name
         });
 
-        const salt = await bcrypt.genSalt(10);
-        user.password = await bcrypt.hash(password, salt);
+        await newUser.save();
 
-        await user.save();
-
-        const payload = {
-            user: {
-                id: user.id
-            }
-        };
-
-        jwt.sign(
-            payload,
-            process.env.JWT_SECRET,
-            { expiresIn: '5d' },
-            (err, token) => {
-                if (err) throw err;
-                res.json({ token });
-            }
+        const token = jwt.sign(
+            { id: newUser._id, email: newUser.email, role: newUser.role },
+            process.env.JWT_SECRET || 'secret_key',
+            { expiresIn: '24h' }
         );
-    } catch (err) {
-        console.error(err.message);
-        res.status(500).send('Server error');
+
+        // Return user without password
+        const userResponse = newUser.toObject();
+        delete userResponse.password;
+
+        // Structure matching frontend expectation (user and profile are merged or separate?)
+        // In AuthContext we expect { user, profile }
+        // User: { id, email }
+        // Profile: { id, ... }
+
+        // Let's return structure consistent with our AuthContext
+        res.status(201).json({
+            token,
+            user: { id: newUser._id, email: newUser.email },
+            profile: userResponse
+        });
+    } catch (error) {
+        res.status(500).json({ message: 'Server error', error: error.message });
     }
 });
 
-// @route   POST api/auth/login
-// @desc    Authenticate user & get token
-// @access  Public
+// Login
 router.post('/login', async (req, res) => {
-    const { email, password } = req.body;
-
     try {
-        let user = await User.findOne({ email });
+        const { email, password } = req.body;
 
+        const user = await User.findOne({ email });
         if (!user) {
-            return res.status(400).json({ msg: 'Invalid Credentials' });
+            return res.status(400).json({ message: 'Invalid credentials' });
         }
 
         const isMatch = await bcrypt.compare(password, user.password);
-
         if (!isMatch) {
-            return res.status(400).json({ msg: 'Invalid Credentials' });
+            return res.status(400).json({ message: 'Invalid credentials' });
         }
 
-        const payload = {
-            user: {
-                id: user.id
-            }
-        };
-
-        jwt.sign(
-            payload,
-            process.env.JWT_SECRET,
-            { expiresIn: '5d' },
-            (err, token) => {
-                if (err) throw err;
-                res.json({ token, user: { id: user.id, name: user.name, email: user.email } });
-            }
+        const token = jwt.sign(
+            { id: user._id, email: user.email, role: user.role },
+            process.env.JWT_SECRET || 'secret_key',
+            { expiresIn: '24h' }
         );
-    } catch (err) {
-        console.error(err.message);
-        res.status(500).send('Server error');
+
+        const userResponse = user.toObject();
+        delete userResponse.password;
+
+        res.json({
+            token,
+            user: { id: user._id, email: user.email },
+            profile: userResponse
+        });
+    } catch (error) {
+        res.status(500).json({ message: 'Server error', error: error.message });
     }
 });
 
-// @route   GET api/auth/user
-// @desc    Get logged in user
-// @access  Private
-router.get('/user', auth, async (req, res) => {
+// Get Current User (Me)
+router.get('/me', authenticateToken, async (req, res) => {
     try {
         const user = await User.findById(req.user.id).select('-password');
-        res.json(user);
-    } catch (err) {
-        console.error(err.message);
-        res.status(500).send('Server Error');
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        res.json({
+            user: { id: user._id, email: user.email },
+            profile: user
+        });
+    } catch (error) {
+        res.status(500).json({ message: 'Server error', error: error.message });
     }
 });
 
-module.exports = router;
+export default router;

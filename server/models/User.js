@@ -1,45 +1,42 @@
-const mongoose = require('mongoose');
+import mongoose from 'mongoose';
 
-const UserSchema = new mongoose.Schema({
-    name: {
-        type: String,
-        required: true,
-    },
+const userSchema = new mongoose.Schema({
     email: {
         type: String,
         required: true,
         unique: true,
+        trim: true,
+        lowercase: true
     },
     password: {
         type: String,
-        required: true,
+        required: true
+    },
+    full_name: {
+        type: String,
+        required: true
+    },
+    avatar_url: {
+        type: String,
+        default: null
     },
     role: {
         type: String,
         enum: ['student', 'admin'],
-        default: 'student',
+        default: 'student'
     },
-    // We will track progress here (simplified for now)
-    progress: [
-        {
-            videoId: {
-                type: mongoose.Schema.Types.ObjectId,
-                ref: 'Video',
-            },
-            completed: {
-                type: Boolean,
-                default: false,
-            },
-            quizScore: {
-                type: Number,
-                default: 0,
-            },
+    preferences: {
+        notification_time: {
+            type: String,
+            default: '09:00'
+        },
+        daily_reminder: {
+            type: Boolean,
+            default: false
         }
-    ],
-    createdAt: {
-        type: Date,
-        default: Date.now,
-    },
+    }
+}, {
+    timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' }
 });
 
-module.exports = mongoose.model('User', UserSchema);
+export default mongoose.model('User', userSchema);
