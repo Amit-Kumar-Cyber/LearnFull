@@ -2,7 +2,8 @@
 
 **Learnful** is a state-of-the-art, AI-powered Learning Management System (LMS) designed to transform how students learn from digital content. By leveraging advanced AI models, Learnful converts YouTube videos into comprehensive study materials, including transcripts, mind maps, cheat sheets, and interactive quizzes.
 
-![Learnful Banner](https://img.youtube.com/vi/dQw4w9WgXcQ/maxresdefault.jpg) *Placeholder image: Replace with your project screenshot*
+![Learnful Banner]()
+![Learnful Banner]()
 
 ## ✨ Key Features
 
