@@ -29,6 +29,7 @@ import { TestsView } from './dashboard-views/TestsView';
 import { LeaderboardView } from './dashboard-views/LeaderboardView';
 import { ResourcesView } from './dashboard-views/ResourcesView';
 import { SettingsView } from './dashboard-views/SettingsView';
+import { API_ROUTES } from '../lib/api';
 
 interface DashboardNewProps {
   courses: Course[];
@@ -54,7 +55,7 @@ export function DashboardNew({
 
     setIsProcessingLink(true);
     try {
-      const response = await fetch('http://localhost:5000/api/analyze', {
+      const response = await fetch(API_ROUTES.ANALYZE, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

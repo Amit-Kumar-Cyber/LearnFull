@@ -3,6 +3,7 @@ import { Button } from './ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Play, RotateCcw, Loader2, Sparkles, AlertCircle } from 'lucide-react';
 import Editor from '@monaco-editor/react';
+import { API_ROUTES } from '../lib/api';
 
 const LANGUAGE_TEMPLATES = {
   python: `# Python Code Editor\ndef greet(name):\n    return f"Hello, {name}!"\n\nprint(greet("Student"))`,
@@ -38,7 +39,7 @@ export function CodeCompiler() {
     setError('');
 
     try {
-      const response = await fetch('http://localhost:5000/api/compiler/compile', {
+      const response = await fetch(API_ROUTES.COMPILE, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

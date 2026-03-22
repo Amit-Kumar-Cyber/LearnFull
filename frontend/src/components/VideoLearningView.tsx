@@ -8,6 +8,7 @@ import { QuizModule } from './QuizModule';
 import { CodeCompiler } from './CodeCompiler';
 import { MindMapVisualization } from './MindMapVisualization';
 import { useStore } from '../store/useStore';
+import { API_ROUTES } from '../lib/api';
 import {
   ArrowLeft,
   BookOpen,
@@ -96,7 +97,7 @@ export function VideoLearningView({
     setIsChatLoading(true);
 
     try {
-      const response = await fetch('http://localhost:5000/api/chat', {
+      const response = await fetch(API_ROUTES.CHAT, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
