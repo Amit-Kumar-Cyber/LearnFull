@@ -10,7 +10,7 @@ import { AboutUsPage } from './components/AboutUsPage';
 import { ContactPage } from './components/ContactPage';
 import { SignInPage } from './components/SignInPage';
 import { SignUpPage } from './components/SignUpPage';
-import { UserProgress, Video } from './types';
+import { Course, UserProgress, Video } from './types';
 import { supabase } from './lib/supabase';
 import {
   mockCourses,
@@ -87,10 +87,11 @@ export default function App() {
   }, [userProgress]);
 
   const handleGetStarted = () => {
-    navigate('/dashboard');
-    toast.success('Welcome to Learnful!', {
-      description: 'Start learning by selecting a course or pasting a YouTube link.',
-    });
+    if (user) {
+      navigate('/dashboard');
+    } else {
+      navigate('/signup');
+    }
   };
 
   const handleTryWatchMode = () => {
@@ -253,22 +254,77 @@ export default function App() {
     handleSelectVideo(enrichedVideo);
 
     // Persist to Supabase if user logged in
-    const { user } = useStore.getState();
     if (user) {
       supabase.from('courses').insert([{
         user_id: user.id,
         title: video.title,
         description: video.description,
         video_data: enrichedVideo,
-        notes: notes,
+        notes: notesContent, // Use the stringified notes
         quiz: quiz,
         mind_map: mindMap,
         cheat_sheet: cheatSheet
       }]).then(({ error }) => {
-        if (error) console.error('Error persisting course:', error);
+        if (error) {
+          console.error('Error persisting course:', error);
+          toast.error('Failed to save course to cloud');
+        } else {
+          toast.success('Course saved to your profile!');
+          // Refresh courses list
+          fetchUserCourses(user.id);
+        }
       });
     }
   };
+
+  const [userCourses, setUserCourses] = useState<Course[]>([]);
+
+  const fetchUserCourses = async (userId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('courses')
+        .select('*')
+        .eq('user_id', userId);
+
+      if (error) throw error;
+
+      if (data) {
+        const mappedCourses: Course[] = data.map((c: any) => ({
+          id: c.id,
+          title: c.title,
+          description: c.description,
+          videos: [c.video_data],
+          category: c.video_data.category || 'General',
+          thumbnail: c.video_data.thumbnail,
+        }));
+
+        // Set state and also sync memory cache
+        setUserCourses(mappedCourses);
+        
+        // Sync mock data for detail views
+        data.forEach((c: any) => {
+          const video = c.video_data;
+          if (!mockVideos.find(v => v.id === video.id)) {
+            mockVideos.push(video);
+          }
+          mockNotes[video.id] = { content: typeof c.notes === 'string' ? c.notes : JSON.stringify(c.notes), id: `n_${video.id}`, videoId: video.id };
+          mockQuizzes[video.id] = { questions: c.quiz?.questions || [], id: `q_${video.id}`, videoId: video.id };
+          mockMindMaps[video.id] = c.mind_map || { id: 'root', label: video.title };
+          mockCheatSheets[video.id] = { items: c.cheat_sheet?.items || [], id: `cs_${video.id}`, videoId: video.id };
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching courses:', error);
+    }
+  };
+
+  useEffect(() => {
+    if (user) {
+      fetchUserCourses(user.id);
+    } else {
+      setUserCourses([]);
+    }
+  }, [user]);
 
   const handleSignIn = (userData: any) => {
     setUser(userData);
@@ -295,27 +351,35 @@ export default function App() {
       <Routes>
         <Route path="/" element={<LandingPage onGetStarted={handleGetStarted} onNavigate={handleNavigateToPage} />} />
         <Route path="/dashboard" element={
-          <DashboardNew
-            courses={mockCourses}
-            userProgress={userProgress}
-            onSelectVideo={handleSelectVideo}
-            onAddLink={handleAddLink}
-          />
+          user ? (
+            <DashboardNew
+              courses={[...mockCourses, ...userCourses]}
+              userProgress={userProgress}
+              onSelectVideo={handleSelectVideo}
+              onAddLink={handleAddLink}
+            />
+          ) : (
+            <Navigate to="/signin" />
+          )
         } />
         <Route path="/video/:id" element={
-          selectedVideo ? (
-            <VideoLearningView
-              video={selectedVideo}
-              userProgress={userProgress.find(p => p.videoId === selectedVideo.id)}
-              note={mockNotes[selectedVideo.id]}
-              cheatSheet={mockCheatSheets[selectedVideo.id]}
-              mindMap={mockMindMaps[selectedVideo.id]}
-              quiz={mockQuizzes[selectedVideo.id]}
-              onBack={handleBackToDashboard}
-              onQuizComplete={(score) => handleQuizComplete(selectedVideo.id, score)}
-              onArtifactComplete={(type) => handleArtifactComplete(selectedVideo.id, type)}
-            />
-          ) : <Navigate to="/dashboard" />
+          user ? (
+            selectedVideo ? (
+              <VideoLearningView
+                video={selectedVideo}
+                userProgress={userProgress.find(p => p.videoId === selectedVideo.id)}
+                note={mockNotes[selectedVideo.id]}
+                cheatSheet={mockCheatSheets[selectedVideo.id]}
+                mindMap={mockMindMaps[selectedVideo.id]}
+                quiz={mockQuizzes[selectedVideo.id]}
+                onBack={handleBackToDashboard}
+                onQuizComplete={(score) => handleQuizComplete(selectedVideo.id, score)}
+                onArtifactComplete={(type) => handleArtifactComplete(selectedVideo.id, type)}
+              />
+            ) : <Navigate to="/dashboard" />
+          ) : (
+            <Navigate to="/signin" />
+          )
         } />
         <Route path="/watch" element={
           <WatchPage

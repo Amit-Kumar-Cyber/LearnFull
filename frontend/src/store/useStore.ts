@@ -26,6 +26,7 @@ interface UserState {
   level: number;
   researchGroup: 'A' | 'B';
   setUser: (user: any) => void;
+  signOut: () => Promise<void>;
   addXP: (amount: number) => Promise<void>;
   loadProfile: (userId: string) => Promise<void>;
   setResearchGroup: (group: 'A' | 'B') => void;
@@ -54,6 +55,10 @@ export const useStore = create<VideoState & UIState & UserState>((set, get) => (
   level: 12,
   researchGroup: 'B',
   setUser: (user) => set({ user }),
+  signOut: async () => {
+    await supabase.auth.signOut();
+    set({ user: null, xp: 0, level: 1 });
+  },
   setResearchGroup: (group) => set({ researchGroup: group }),
   addXP: async (amount) => {
     const currentState = get();
@@ -72,14 +77,48 @@ export const useStore = create<VideoState & UIState & UserState>((set, get) => (
     }
   },
   loadProfile: async (userId: string) => {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('xp, level')
-      .eq('id', userId)
-      .single();
-    
-    if (data && !error) {
-      set({ xp: data.xp, level: data.level });
+    try {
+      // 1. Try to fetch the profile - Using limit(1) instead of single() to avoid 406 errors
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('xp, level')
+        .eq('id', userId)
+        .limit(1);
+      
+      if (error) {
+        console.error('Error fetching profile:', error);
+        return;
+      }
+
+      if (data && data.length > 0) {
+        set({ xp: data[0].xp, level: data[0].level });
+      } else {
+        // 2. Profile missing? It might be an existing user from before the trigger.
+        // Create it on the fly using auth metadata.
+        console.log('Profile missing for user, attempting to create...');
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const { data: newProfile, error: createError } = await supabase
+            .from('profiles')
+            .upsert([{ 
+              id: userId, 
+              xp: 0, 
+              level: 1, 
+              full_name: user.user_metadata?.full_name || 'User' 
+            }])
+            .select()
+            .single();
+            
+          if (!createError && newProfile) {
+            set({ xp: newProfile.xp, level: newProfile.level });
+            console.log('Profile created successfully');
+          } else if (createError) {
+            console.error('Error creating profile:', createError);
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Unexpected error in loadProfile:', err);
     }
   }
 }));

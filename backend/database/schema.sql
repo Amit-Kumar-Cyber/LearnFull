@@ -1,62 +1,61 @@
--- Learnful Database Schema
--- Run this in the Supabase SQL Editor
+-- 1. CLEAN SLATE: Drop all existing tables and their dependencies
+DROP TABLE IF EXISTS public.student_progress CASCADE;
+DROP TABLE IF EXISTS public.quizzes CASCADE;
+DROP TABLE IF EXISTS public.ai_assets CASCADE;
+DROP TABLE IF EXISTS public.courses CASCADE;
+DROP TABLE IF EXISTS public.profiles CASCADE;
 
--- 1. USERS TABLE (Linked to Supabase Auth)
-CREATE TABLE IF NOT EXISTS public.profiles (
+-- 2. PROFILES TABLE
+CREATE TABLE public.profiles (
   id UUID REFERENCES auth.users ON DELETE CASCADE,
   full_name TEXT,
   avatar_url TEXT,
-  xp_points INTEGER DEFAULT 0,
+  xp INTEGER DEFAULT 0,
+  level INTEGER DEFAULT 1,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   PRIMARY KEY (id)
 );
 
--- Enable Row Level Security (RLS)
+-- Enable RLS
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 
--- 2. COURSES / VIDEOS TABLE
-CREATE TABLE IF NOT EXISTS public.courses (
+-- 3. COURSES TABLE (Consolidated)
+CREATE TABLE public.courses (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE,
   title TEXT NOT NULL,
-  youtube_id TEXT UNIQUE NOT NULL,
-  category TEXT,
-  duration_sec INTEGER,
-  transcript TEXT,
+  description TEXT,
+  video_data JSONB,
+  notes TEXT,
+  quiz JSONB,
+  mind_map JSONB,
+  cheat_sheet JSONB,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 3. AI GENERATED ASSETS
-CREATE TABLE IF NOT EXISTS public.ai_assets (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  course_id UUID REFERENCES public.courses(id) ON DELETE CASCADE,
-  notes_markdown TEXT,
-  mindmap_json JSONB,
-  cheatsheet_markdown TEXT,
-  info_density_score FLOAT,
-  knowledge_points_count INTEGER,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
+-- Enable RLS
+ALTER TABLE public.courses ENABLE ROW LEVEL SECURITY;
 
--- 4. ADAPTIVE QUIZZES
-CREATE TABLE IF NOT EXISTS public.quizzes (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  course_id UUID REFERENCES public.courses(id) ON DELETE CASCADE,
-  question_text TEXT NOT NULL,
-  options JSONB,
-  correct_answer TEXT,
-  bloom_taxonomy_level TEXT,
-  difficulty_score FLOAT,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
+-- 4. RLS POLICIES
+CREATE POLICY "Users can view own profile" ON public.profiles FOR SELECT USING (auth.uid() = id);
+CREATE POLICY "Users can update own profile" ON public.profiles FOR UPDATE USING (auth.uid() = id);
+CREATE POLICY "Users can view own courses" ON public.courses FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can insert own courses" ON public.courses FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users can update own courses" ON public.courses FOR UPDATE USING (auth.uid() = user_id);
+CREATE POLICY "Users can delete own courses" ON public.courses FOR DELETE USING (auth.uid() = user_id);
 
--- 5. STUDENT PROGRESS & RESEARCH LOGS
-CREATE TABLE IF NOT EXISTS public.student_progress (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID REFERENCES public.profiles(id),
-  course_id UUID REFERENCES public.courses(id),
-  is_completed BOOLEAN DEFAULT FALSE,
-  quiz_score FLOAT,
-  time_spent_sec INTEGER,
-  last_watched_timestamp INTEGER,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
+-- 5. AUTOMATIC PROFILE CREATION TRIGGER
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER AS $$
+BEGIN
+  INSERT INTO public.profiles (id, full_name, xp, level)
+  VALUES (new.id, new.raw_user_meta_data->>'full_name', 0, 1);
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Recreate trigger
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE PROCEDURE public.handle_new_user();
