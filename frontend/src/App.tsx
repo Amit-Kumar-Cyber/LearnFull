@@ -34,11 +34,16 @@ export default function App() {
   // Initialize Auth and Progress
   useEffect(() => {
     // Supabase Auth Listener
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      console.log('Auth State Change Event:', _event, session?.user?.email || 'No user');
       if (session?.user) {
         setUser(session.user);
-        await loadProfile(session.user.id);
-        if (location.pathname === '/signin' || location.pathname === '/signup' || location.pathname === '/') {
+        // Don't await here, so we don't block navigation if profile fetch is slow
+        loadProfile(session.user.id); 
+        
+        const pathsToRedirect = ['/signin', '/signup', '/'];
+        if (pathsToRedirect.includes(location.pathname)) {
+          console.log('Auto-redirecting from auth state change...');
           navigate('/dashboard');
         }
       } else {
@@ -326,9 +331,11 @@ export default function App() {
     }
   }, [user]);
 
-  const handleSignIn = (userData: any) => {
-    setUser(userData);
-    loadProfile(userData.id);
+  const handleSignIn = (newUser: any) => {
+    console.log('handleSignIn triggered in App.tsx', newUser?.email);
+    setUser(newUser);
+    loadProfile(newUser.id);
+    console.log('Navigating to /dashboard from handleSignIn...');
     navigate('/dashboard');
   };
 

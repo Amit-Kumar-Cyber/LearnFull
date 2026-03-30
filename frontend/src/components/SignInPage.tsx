@@ -32,12 +32,16 @@ export function SignInPage({ onSignIn, onSwitchToSignUp, onBack }: SignInPagePro
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
+    console.log('--- SIGN IN ATTEMPT STARTED ---');
+    console.log('Email:', email);
     
     try {
+      console.log('Calling supabase.auth.signInWithPassword...');
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
+      console.log('Supabase Response:', { data, error });
 
       if (error) throw error;
 

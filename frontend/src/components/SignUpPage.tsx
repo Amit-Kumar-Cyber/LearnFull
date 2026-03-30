@@ -62,8 +62,11 @@ export function SignUpPage({ onSignUp, onSwitchToSignIn, onBack }: SignUpPagePro
     }
     
     setIsLoading(true);
+    console.log('--- SIGN UP ATTEMPT STARTED ---');
+    console.log('Email:', email, 'Name:', name);
     
     try {
+      console.log('Calling supabase.auth.signUp...');
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
@@ -73,6 +76,7 @@ export function SignUpPage({ onSignUp, onSwitchToSignIn, onBack }: SignUpPagePro
           },
         },
       });
+      console.log('Supabase Response received:', { data, error });
 
       if (error) throw error;
 
